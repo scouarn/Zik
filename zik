@@ -67,7 +67,7 @@ USAGE="Usage: $0 [--help|add <file>|menu|skip|pause|resume|stop]
 
 # Prompt for option if none was given
 if [ -z $1 ]; then
-    OPTIONS="Menu Skip Play Pause Stop Reset"
+    OPTIONS="Menu Skip Pause Resume Stop Reset"
     CHOICE=$(printf "%s\n" $OPTIONS |\
         dmenu -i -p "Zik action"    |\
         tr '[:upper:]' '[:lower:]'
