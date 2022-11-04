@@ -5,7 +5,7 @@ SEARCH_EXT="wav\|mp3\|flac\|ogg"
 
 ZIK_DIR="$HOME/.zik"
 QUEUE="$ZIK_DIR/fifo"
-
+COVERS="$ZIK_DIR/covers"
 DAEMON_PID_FILE="$ZIK_DIR/daemon_pid"
 FFPLAY_PID_FILE="$ZIK_DIR/ffplay_pid"
 
@@ -43,6 +43,24 @@ killffplay() {
     fi
 }
 
+# Get cover from the web. $1: artist, $2 album, $3 output path
+wgetcover() {
+    [ -z "$1" ] && [ -z "$2" ] && return 1
+
+    # Find the MusicBrainz ID of the album
+    URL="http://musicbrainz.org/ws/2/release-group/?query=artist:$1+release-group:$2&limit=1"
+
+    # Look for <release-group id="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    MBID=$(wget -qO - "$URL" |
+        sed -n 's/.*<release-group id="\([^"]*\)".*/\1/p'
+    )
+
+    # Fetch the image from coverartarchive.org,
+    # if wget fails (exit != 0) then no image found
+    IMAGE_URL="https://coverartarchive.org/release-group/$MBID/front"
+    return $(wget -qO "$3" "$IMAGE_URL") 
+}
+
 # Extract metadata, generate and cache album cover art
 gencover() {
     META=$(ffmpeg -loglevel error -i "$1" -f ffmetadata -)
@@ -50,7 +68,7 @@ gencover() {
     ALBUM=$(echo  "$META" | sed -n 's/^ALBUM=\(.*\)$/\1/Ip')
 
     if [ -n "$ARTIST" ] && [ -n "$ALBUM" ]; then
-        COVER="$ZIK_DIR/$(\
+        COVER="$COVERS/$(\
             echo "$ARTIST-$ALBUM.jpg"   |
             tr '[:upper:]' '[:lower:]'  |
             tr -cd '[:alnum:]._-'
@@ -59,14 +77,15 @@ gencover() {
         # If artist or album missing from metadata,
         # save with the audio file name itself
         BASENAME=$(basename "$1")
-        COVER="$ZIK_DIR/$BASENAME.jpg"
+        COVER="$COVERS/$BASENAME.jpg"
     fi
 
     # If doesn't exist already, extract from the audio file or get from the web
     if [ -f "$COVER" ] || 
-        ffmpeg -y -i "$1" -vframes 1 -f image2 "$COVER" 2> /dev/null
+        ffmpeg -y -i "$1" -vframes 1 -f image2 "$COVER" 2> /dev/null ||
+        wgetcover "$ARTIST" "$ALBUM" "$COVER"
     then
-        notif "Found cover $COVER"
+        # notif "Found cover $COVER"
         echo "$COVER"
     else
         notif "No cover found for $1"
@@ -74,8 +93,7 @@ gencover() {
 }
 
 
-# This runs in the background as needed
-# (stops when no more music in the queue)
+# Run in the background when needed and stop swhen when the queue is empty.
 daemon() {
     # Exit cleanly
     trap 'killffplay -TERM; exit' TERM INT EXIT QUIT
@@ -91,10 +109,11 @@ daemon() {
         notif "Now playing $FILE" 
 
         # Set cover as wallpaper
-        COVER=$(gencover "$FILE")
+        # FIXME: unhack this make it run in the background
+        ( COVER=$(gencover "$FILE")
         if [ -n "$COVER" ] && [ -f "$COVER" ]; then
             feh --no-fehbg --bg-max "$COVER"
-        fi
+        fi ) &
 
         # Play it
         ffplay -nodisp -autoexit "$FILE" 2> /dev/null &
@@ -109,11 +128,9 @@ daemon() {
 }
 
 
-
-# Create the directory if it doesn't exist yet
-if [ ! -d "$ZIK_DIR" ]; then
-    mkdir "$ZIK_DIR"
-fi
+# Create the directories if they don't exist yet
+mkdir -p "$ZIK_DIR"
+mkdir -p "$COVERS"
 
 # Create the music queue as an actual fifo
 if [ ! -p "$QUEUE" ]; then
@@ -121,6 +138,7 @@ if [ ! -p "$QUEUE" ]; then
 fi
 
 # Pid of the process is/will be playing
+# FIXME: refactor the two cats ?
 if [ -f "$DAEMON_PID_FILE" ] && ps -p $(cat "$DAEMON_PID_FILE") > /dev/null
 then
     DAEMON_PID=$(cat "$DAEMON_PID_FILE")
@@ -143,7 +161,6 @@ USAGE="Usage: $0 [--help|add <file>|menu|skip|pause|resume|stop|reset]
     stop        Empty the queue and stop playing.
     reset       Remove the fifo file (use if something went wrong)."
     #query       Print the status of what is beeing played."
-
 
 # Prompt for option if none was given
 if [ -z $1 ]; then
