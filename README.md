@@ -42,7 +42,6 @@ Usage: zik [--help|add <file>|menu|skip|pause|resume|stop|reset]
 # How it works
 The script can start a daemon (if it's not already running) that plays audio files from a queue materialized by a fifo/named pipe. By default it is created automatically as `$HOME/.zik/fifo`. You can interact with the queue using the script itself.
 The skip/pause/resume commands work by sending the TERM/STOP/CONT signals respectively to the daemon's `ffplay` child. To stop the daemon, a TERM signal is sent which stops the audio playback cleanly. Again, you can use the script instead of sending kill commands manually.
-
 For each song, the album cover art is extracted with `ffmpeg` and set as the wallpaper with `feh`. Then it is played by `ffplay` running with the `-nodisp` flag.
 
 # TODO
@@ -56,7 +55,6 @@ For each song, the album cover art is extracted with `ffmpeg` and set as the wal
 - make it work with directories, adding ordered by track number
 - blur the wallpaper so it's less ugly when resized from a square, see how [this guy](https://github.com/rstacruz/feh-blur-wallpaperu) does it with the gm program
 - get the image from the web if not in the audio file by using ffmpeg to find the album name in the metadata
-- cache images like that : `.zik/artist-album.jpg`
 - add the artist and album to the search prompt (so it can be searched for more easily just in case)
 - insert music to be played next : at the "wrong end" of the queue : cat into var, add the song, then readd everything back
 
