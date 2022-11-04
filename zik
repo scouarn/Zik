@@ -1,14 +1,10 @@
 #!/usr/bin/sh
 
-# Configuration
-# (this is nly used by the file selection prompt)
-ZIK_PATH="$HOME/Music"
-ZIK_EXTENSIONS="wav\|mp3\|flac\|ogg"
-
-# Temp files, change if you really need to.
-ZIK_TMP="/tmp/zik"
-QUEUE="$ZIK_TMP/fifo"
-COVER="$ZIK_TMP/cover.png"
+SEARCH_PATH="$HOME/Music"
+SEARCH_EXT="wav\|mp3\|flac\|ogg"
+ZIK_DIR="$HOME/.zik"
+QUEUE="$ZIK_DIR/fifo"
+COVER="$ZIK_DIR/cover.png"
 
 
 # Pid of the process is/will be playing
@@ -31,17 +27,17 @@ add() {
 
 # dmenu prompt to select audio file to add to queue
 menuadd() {
-    add "$(find "$ZIK_PATH/" -regex ".*\.\($ZIK_EXTENSIONS\)"  | # Find audio files
-        awk -F '/' '{printf "%-60s%s\n", $NF, $0}'          | # Rewrite as 'file   fullpath'
-        dmenu -i -l 30 -p "Choose audio file"               | # Prompt user
-        sed 's#^\([^/]*\)\(.*\)$#\2#'                         # Extract back the fullpath
+    add "$(find "$SEARCH_PATH/" -regex ".*\.\($SEARCH_EXT\)" | # Find audio files
+        awk -F '/' '{printf "%-60s%s\n", $NF, $0}'           | # Rewrite as 'file   fullpath'
+        dmenu -i -l 30 -p "Choose audio file"                | # Prompt user
+        sed 's#^\([^/]*\)\(.*\)$#\2#'                          # Extract back the fullpath
     )"
 }
 
 
 # Create temporary directory
-if [ ! -d "$ZIK_TMP" ]; then
-    mkdir "$ZIK_TMP"
+if [ ! -d "$ZIK_DIR" ]; then
+    mkdir "$ZIK_DIR"
 fi
 
 # Create the music queue as an actual fifo
