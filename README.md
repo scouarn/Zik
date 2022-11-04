@@ -46,6 +46,9 @@ For each song, the album cover art is extracted with `ffmpeg` and set as the wal
 
 
 # TODO
+- Chop file extension in selection menu
+- Rewrite signal stuff with a command fifo running in parallel
+- Move /tmp/zik to home dir
 - Force empty the queue when starting (?)
 - Make it more configurable : MENU_PROMPT, WALLPAPER, PLAYER(?) vars
 - Clean the option parsing
