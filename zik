@@ -2,26 +2,27 @@
 
 SEARCH_PATH="$HOME/Music"
 SEARCH_EXT="wav\|mp3\|flac\|ogg"
+
 ZIK_DIR="$HOME/.zik"
 QUEUE="$ZIK_DIR/fifo"
 COVER="$ZIK_DIR/cover.png"
 
+DAEMON_PID_FILE="$ZIK_DIR/daemon_pid"
+FFPLAY_PID_FILE="$ZIK_DIR/ffplay_pid"
 
-# Pid of the process is/will be playing
-ZIK_PID=$(pidof -x $(basename $0) -o $$)
-if [ -z "$ZIK_PID" ]; then
-    ZIK_PID=$$
-fi
+notif() {
+    notify-send "Zik" "$1"
+}
 
-# Write to fifo
+# Write file to fifo
 add() {
     if [ -f "$1" ]; then
         # It has to running in background because the player
         # might not have started yet
-        echo "$1" > "$QUEUE" &
-        notify-send "Zik" "Added $1"
+        echo "$1" > "$QUEUE"
+        notif "Added $1"
     elif [ -d "$1" ]; then
-        notify-send "Zik" "This is a directory $1" 
+        notif "This is a directory $1" 
     fi
 }
 
@@ -34,8 +35,50 @@ menuadd() {
     )"
 }
 
+# Send signal to the ffplay child process
+# SIGSTOP and SIGCONT actually work pause/resume ffplay.
+killffplay() {
+    if [ -f "$FFPLAY_PID_FILE" ] && ps -p $(cat "$FFPLAY_PID_FILE") > /dev/null
+    then
+        kill $1 $(cat "$FFPLAY_PID_FILE")
+    fi
+}
 
-# Create temporary directory
+# This runs in the background as needed
+# (stops when no more music in the queue)
+daemon() {
+    # Exit cleanly
+    trap 'killffplay -TERM; exit' TERM INT EXIT QUIT
+
+    # Open queue for reading : when doing read directly on $QUEUE the fifo is 
+    # opened then closed so other processes trying to write are blocked.
+    exec 3< "$QUEUE"
+
+    # For each file in the queue do...
+    # Exit the loop when everything has been read.
+    while read -u 3 FILE; do
+        [ -f "$FILE" ] || continue
+        notif "Now playing $FILE" 
+
+        # Extract cover image and set as wallpaper
+        ffmpeg -y -i "$FILE" -an -vcodec copy "$COVER" 2> /dev/null &&
+            feh --no-fehbg --bg-max "$COVER" -B '#000000'
+
+        # Play it
+        ffplay -nodisp -autoexit "$FILE" 2> /dev/null &
+        FFPLAY_PID=$!
+        echo $! > "$FFPLAY_PID_FILE"
+        wait $!
+    done
+
+    # Closing queue
+    notif "Queue empty, stopping"
+    exec 3<&-
+}
+
+
+
+# Create the directory if it doesn't exist yet
 if [ ! -d "$ZIK_DIR" ]; then
     mkdir "$ZIK_DIR"
 fi
@@ -45,8 +88,17 @@ if [ ! -p "$QUEUE" ]; then
     mkfifo "$QUEUE"
 fi
 
+# Pid of the process is/will be playing
+if [ -f "$DAEMON_PID_FILE" ] && ps -p $(cat "$DAEMON_PID_FILE") > /dev/null
+then
+    DAEMON_PID=$(cat "$DAEMON_PID_FILE")
+else
+    daemon &
+    echo "$!" > "$DAEMON_PID_FILE"
+    DAEMON_PID=$!
+fi
 
-USAGE="Usage: $0 [--help|add <file>|menu|skip|pause|resume|stop]
+USAGE="Usage: $0 [--help|add <file>|menu|skip|pause|resume|stop|reset]
     Without any option, a dmenu prompt is opened to choose one.
 
     Options:
@@ -57,15 +109,15 @@ USAGE="Usage: $0 [--help|add <file>|menu|skip|pause|resume|stop]
     pause       Pause playback.
     resume      Resume playback.
     stop        Empty the queue and stop playing.
-    reset       Remove the fifo file."
+    reset       Remove the fifo file (use if something went wrong)."
     #query       Print the status of what is beeing played."
 
 
 # Prompt for option if none was given
 if [ -z $1 ]; then
-    OPTIONS="Menu Skip Pause Resume Stop Reset"
-    CHOICE=$(printf "%s\n" $OPTIONS |\
-        dmenu -i -p "Zik action"    |\
+    OPTIONS="Menu Skip Pause Resume Stop"
+    CHOICE=$(printf "%s\n" $OPTIONS |
+        dmenu -i -p "Zik"           |
         tr '[:upper:]' '[:lower:]'
     )
 else 
@@ -73,55 +125,13 @@ else
 fi
 
 case "$CHOICE" in
-    '--help' ) echo "$USAGE"; exit;;
+    '--help' ) echo "$USAGE";;
     'add'    ) add $2;;
     'menu'   ) menuadd;;
-    'skip'   ) kill -INT  $ZIK_PID; exit;;
-    'pause'  ) kill -USR1 $ZIK_PID; exit;;
-    'resume' ) kill -CONT $ZIK_PID; exit;;
-    'stop'   ) kill -TERM $ZIK_PID; exit;;
-    'reset'  ) rm -f "$QUEUE"; notify-send "Zik" "Removed to fifo file $QUEUE"; exit;;
+    'skip'   ) killffplay -TERM; notif "Skipping";;
+    'pause'  ) killffplay -STOP; notif "Pausing" ;;
+    'resume' ) killffplay -CONT; notif "Resuming";;
+    'stop'   ) kill -TERM $DAEMON_PID;;
+    'reset'  ) rm -f "$QUEUE"; notif "Removed fifo file $QUEUE";;
     *        ) echo "$USAGE" >&2; exit 1;;
 esac
-
-# Stop if already running
-# Wait the add/menuadd if their was one
-if [ "$ZIK_PID" -ne $$ ]; then
-    wait
-    exit
-fi
-
-#   Open queue for reading : when doing read directly on $QUEUE the fifo is 
-# opened then closed so other processes trying to write are blocked.
-exec 3< "$QUEUE"
-FFMPEG_PID=""
-
-#   SIGSTOP and SIGCONT actually work pause/resume ffmpeg.
-# I wanted to send SIGTSTP to zik for pausing but when spawn by dwm
-# the signal isn't received for some reason.
-# NOTE: the wait command is beeing interrupted when TSTP or CONT are received
-#   by the shell script so the trap recall wait.
-trap 'notify-send "Zik" "Skipping"; kill $FFMPEG_PID' INT
-trap 'notify-send "Zik" "Pausing";  kill -STOP $FFMPEG_PID; wait $FFMPEG_PID' USR1 TSTP
-trap 'notify-send "Zik" "Resuming"; kill -CONT $FFMPEG_PID; wait $FFMPEG_PID' CONT
-trap 'notify-send "Zik" "Stopping"; kill $FFMPEG_PID; exit' TERM
-
-# For each file in the queue do...
-# Exit the loop when everything has been read.
-while read -u 3 FILE; do
-    [ -f "$FILE" ] || continue
-    notify-send "Zik" "Now playing $FILE" 
-
-    # Extract cover image and set as wallpaper
-    ffmpeg -y -i "$FILE" -an -vcodec copy "$COVER" 2> /dev/null &&
-        feh --no-fehbg --bg-fill "$COVER" 
-
-    # Play it
-    ffplay -nodisp -autoexit "$FILE" 2> /dev/null &
-    FFMPEG_PID=$!
-    wait $FFMPEG_PID
-done
-
-# Closing queue
-notify-send "Zik" "Queue empty, stopping"
-exec 3<&-
