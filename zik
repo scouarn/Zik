@@ -12,8 +12,6 @@ COVERS="$ZIK_DIR/covers"
 DAEMON_PID_FILE="$ZIK_DIR/daemon_pid"
 FFPLAY_PID_FILE="$ZIK_DIR/ffplay_pid"
 
-
-
 notif() {
     notify-send "Zik" "$1"
 }
@@ -50,23 +48,25 @@ wgetcover() {
     [ -z "$1" ] && [ -z "$2" ] && return 1
 
     # Find the MusicBrainz ID of the album
-    URL="http://musicbrainz.org/ws/2/release-group/?query=artist:$1+release-group:$2&limit=1"
-
     # Look for <release-group id="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-    MBID=$(wget -qO - "$URL" |
-        sed -n 's/.*<release-group id="\([^"]*\)".*/\1/p'
-    )
+    URL="http://musicbrainz.org/ws/2/release-group/?query=artist:$1+release-group:$2&limit=1"
+    MBID=$(wget -qO - "$URL" | sed -n 's/.*<release-group id="\([^"]*\)".*/\1/p')
 
-    # Get image from coverartarchive.org, if wget fails then no image found
+    # Get image from coverartarchive.org
+    # If wget fails (no image found) delete the empty file it made
     IMAGE_URL="https://coverartarchive.org/release-group/$MBID/front"
-    wget -qO "$3" "$IMAGE_URL"
-    return $?
+    if ! wget -qO "$3" "$IMAGE_URL"; then
+        rm "$COVER"
+        return 1
+    fi
 }
 
 # Extract cover if it's not too small. $1: input, $2 output
 extractcover() {
     WIDTH=$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$1")
-    [ $WIDTH -lt $MIN_WIDTH ] && return 1
+    if [ -z $WIDTH ] || [ $WIDTH -lt $MIN_WIDTH ]; then
+        return 1
+    fi
     ffmpeg -y -i "$1" -vframes 1 -f image2 "$2"
     return $?
 }

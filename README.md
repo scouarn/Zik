@@ -10,7 +10,8 @@ set as the wallpaper.
 |-----------|--------------------------|
 | `dmenu`   | Prompts                  |
 | `ffmpeg`  | Extract art and metadata |
-| `ffprobe` | Video channel resolution |
+| `wget`    | Fetch art from the web   |
+| `ffprobe` | Get video channel res    |
 | `ffplay`  | Playback audio           |
 | `wget`    | Fetch images             |
 | `feh`     | Set wallpaper            |
@@ -61,13 +62,17 @@ instead of sending kill commands manually.
 
 ## Cover art
 When playing a song the album cover art is fetched. First it looks in the cache
-in `.zik/covers`.  Then if there's a large enough (`MIN_WIDTH` variable)
+in `$HOME/.zik/covers`.  Then if there's a large enough (`MIN_WIDTH` variable)
 picture in the audio file it is extracted with `ffmpeg`.  Otherwize the
 [MusicBrainz](https://musicbrainz.org/) and [Cover Art
 Archive](http://coverartarchive.org/) APIs are used to find the image.  Finally
 the wallpaper is set with `feh`
 
 # TODO
+- Playlist/list files
+- Stream audio from web sources
+- Find a "Cover.jpg", be aware of capitalization / extension
+- coverartarchive always jpg ?
 - Chop file extension in selection menu
 - Rewrite signal stuff with a command fifo running in parallel
 - Force empty the queue when starting (?)
