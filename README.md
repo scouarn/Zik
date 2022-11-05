@@ -13,7 +13,6 @@ set as the wallpaper.
 | `wget`    | Fetch art from the web   |
 | `ffprobe` | Get video channel res    |
 | `ffplay`  | Playback audio           |
-| `wget`    | Fetch images             |
 | `feh`     | Set wallpaper            |
 
 # Quick start
