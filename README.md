@@ -10,9 +10,9 @@ set as the wallpaper.
 |-----------|--------------------------|
 | `dmenu`   | Prompts                  |
 | `ffmpeg`  | Extract art and metadata |
-| `wget`    | Fetch art from the web   |
 | `ffprobe` | Get video channel res    |
 | `ffplay`  | Playback audio           |
+| `wget`    | Fetch art from the web   |
 | `feh`     | Set wallpaper            |
 
 # Quick start
@@ -68,6 +68,7 @@ Archive](http://coverartarchive.org/) APIs are used to find the image.  Finally
 the wallpaper is set with `feh`
 
 # TODO
+- notify-send blocking when dunst not running ? Skip it or send in the background ?
 - Playlist/list files
 - Stream audio from web sources
 - Find a "Cover.jpg", be aware of capitalization / extension

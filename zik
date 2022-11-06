@@ -189,7 +189,7 @@ fi
 
 case "$CHOICE" in
     '--help' ) echo "$USAGE";;
-    'add'    ) add "$2";;
+    'add'    ) add $(realpath "$2");;
     'menu'   ) menuadd;;
     'skip'   ) killffplay -TERM; notif "Skipping";;
     'pause'  ) killffplay -STOP; notif "Pausing" ;;
