@@ -157,7 +157,7 @@ if [ -f "$DAEMON_PID_FILE" ] && ps -p $(cat "$DAEMON_PID_FILE") > /dev/null
 then
     DAEMON_PID=$(cat "$DAEMON_PID_FILE")
 else
-    daemon &
+    daemon > /dev/null 2>&1 < /dev/null &
     echo "$!" > "$DAEMON_PID_FILE"
     DAEMON_PID=$!
 fi
